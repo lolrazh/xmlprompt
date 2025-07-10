@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import clipboardy from 'clipboardy';
+import figures from 'figures';
+import chalk from 'chalk';
 import {
 	discoverFiles,
 	buildFileTree,
@@ -10,12 +12,26 @@ import {
 	type FileNode,
 } from './file-utils.js';
 
+// Consistent icon family using figures
+const icons = {
+	unchecked: chalk.gray(figures.circle),      // ○
+	checked: chalk.green(figures.circleFilled), // ●
+	folderClosed: chalk.yellow('📁'), // Use emoji directly since figures doesn't have folder
+	folderOpen: chalk.yellow('📂'), // Use emoji directly since figures doesn't have folderOpen
+	star: chalk.cyan(figures.star),
+	pipe: chalk.gray('│'),
+	branch: chalk.gray('├─'),
+	lastBranch: chalk.gray('└─'),
+	space: '  ',
+};
+
 export default function App() {
 	const [fileTree, setFileTree] = useState<FileNode[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [cursorIndex, setCursorIndex] = useState(0);
 	const [flatList, setFlatList] = useState<FileNode[]>([]);
 	const [status, setStatus] = useState('Loading files...');
+	const [totalFiles, setTotalFiles] = useState(0);
 
 	useEffect(() => {
 		discoverFiles()
@@ -23,8 +39,9 @@ export default function App() {
 				const tree = buildFileTree(files);
 				setFileTree(tree);
 				setFlatList(flattenTree(tree));
+				setTotalFiles(files.length);
 				setLoading(false);
-				setStatus(`Found ${files.length} files. Use ↑/↓ to navigate, Space to select, / to expand/collapse, Enter to generate XML.`);
+				updateStatus(tree);
 			})
 			.catch(err => {
 				console.error('Error discovering files:', err);
@@ -33,8 +50,14 @@ export default function App() {
 			});
 	}, []);
 
+	const updateStatus = (tree: FileNode[]) => {
+		const selectedCount = getSelectedFiles(tree).length;
+		setStatus(`${selectedCount}/${totalFiles} files selected • ↑/↓ navigate • Space select • / expand • Enter generate`);
+	};
+
 	const updateFlatList = (newTree: FileNode[]) => {
 		setFlatList(flattenTree(newTree));
+		updateStatus(newTree);
 	};
 
 	const toggleExpanded = (nodeIndex: number) => {
@@ -82,21 +105,22 @@ export default function App() {
 	const generateAndCopyXML = async () => {
 		const selectedFiles = getSelectedFiles(fileTree);
 		if (selectedFiles.length === 0) {
-			setStatus('No files selected!');
+			setStatus(chalk.red('No files selected!'));
 			return;
 		}
 
 		try {
+			setStatus(chalk.yellow(`Generating XML for ${selectedFiles.length} files...`));
 			const xml = generateXML(selectedFiles);
 			await clipboardy.write(xml);
-			setStatus(`Generated XML for ${selectedFiles.length} files and copied to clipboard!`);
+			setStatus(chalk.green(`✓ Generated XML for ${selectedFiles.length} files and copied to clipboard!`));
 			
 			// Exit after successful generation
 			setTimeout(() => {
 				process.exit(0);
-			}, 500); // Brief delay to show the success message
+			}, 800); // Slightly longer to see the success message
 		} catch (error) {
-			setStatus('Error generating XML or copying to clipboard');
+			setStatus(chalk.red('Error generating XML or copying to clipboard'));
 		}
 	};
 
@@ -118,23 +142,29 @@ export default function App() {
 		}
 	});
 
-	const getIndentation = (path: string): string => {
+	const getTreeConnector = (path: string): string => {
 		const depth = path.split('/').length - 1;
-		return '  '.repeat(depth);
+		if (depth === 0) return '';
+		
+		// Simple connector - could be enhanced with proper tree lines
+		return icons.space.repeat(depth);
 	};
 
 	const getIcon = (node: FileNode): string => {
 		if (node.type === 'file') {
-			return node.selected ? '[✓]' : '[ ]';
+			return node.selected ? icons.checked : icons.unchecked;
 		} else {
-			return node.expanded ? '📂' : '📁';
+			return node.expanded ? icons.folderOpen : icons.folderClosed;
 		}
 	};
 
 	return (
 		<Box flexDirection="column" padding={1}>
+			{/* Enhanced header with branding */}
 			<Box marginBottom={1}>
-				<Text bold color="blue">xmlprompt</Text>
+				<Text bold>
+					{icons.star} <Text color="cyan">xmlprompt</Text>
+				</Text>
 			</Box>
 
 			{loading ? (
@@ -142,21 +172,25 @@ export default function App() {
 			) : (
 				<>
 					<Box flexDirection="column" marginBottom={1}>
-						{flatList.map((node, index) => (
-							<Text
-								key={node.path}
-								color={cursorIndex === index ? 'cyan' : undefined}
-								backgroundColor={cursorIndex === index ? 'blue' : undefined}
-							>
-								{cursorIndex === index ? '> ' : '  '}
-								{getIndentation(node.path)}
-								{getIcon(node)} {node.name}
-							</Text>
-						))}
+						{flatList.map((node, index) => {
+							const isSelected = cursorIndex === index;
+							return (
+								<Text
+									key={node.path}
+									backgroundColor={isSelected ? 'gray' : undefined}
+									color={isSelected ? 'black' : undefined}
+								>
+									{isSelected ? '❯ ' : '  '}
+									{getTreeConnector(node.path)}
+									{getIcon(node)} {node.name}
+								</Text>
+							);
+						})}
 					</Box>
 					
+					{/* Enhanced status bar */}
 					<Box marginTop={1}>
-						<Text color="gray">{status}</Text>
+						<Text backgroundColor="gray" color="white"> {status} </Text>
 					</Box>
 				</>
 			)}
