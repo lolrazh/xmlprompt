@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput, useStdout, useApp } from 'ink';
+import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import clipboardy from 'clipboardy';
 import Gradient from 'ink-gradient';
 import BigText from 'ink-big-text';
@@ -28,12 +28,9 @@ export default function App() {
 	const [loading, setLoading] = useState(true);
 	const [cursorIndex, setCursorIndex] = useState(0);
 	const [flatList, setFlatList] = useState<FileNode[]>([]);
-	const [totalFiles, setTotalFiles] = useState(0);
-	const [showHelp, setShowHelp] = useState(true);
+	const [showHelp] = useState(true);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generationComplete, setGenerationComplete] = useState(false);
-	const [selectedCount, setSelectedCount] = useState(0);
-	const { stdout } = useStdout();
 	const { exit } = useApp();
 
 	useEffect(() => {
@@ -42,9 +39,7 @@ export default function App() {
 				const tree = buildFileTree(files);
 				setFileTree(tree);
 				setFlatList(flattenTree(tree));
-				setTotalFiles(files.length);
 				setLoading(false);
-				updateSelectedCount(tree);
 			})
 			.catch(err => {
 				console.error('Error discovering files:', err);
@@ -52,14 +47,8 @@ export default function App() {
 			});
 	}, []);
 
-	const updateSelectedCount = (tree: FileNode[]) => {
-		const count = getSelectedFiles(tree).length;
-		setSelectedCount(count);
-	};
-
 	const updateFlatList = (newTree: FileNode[]) => {
 		setFlatList(flattenTree(newTree));
-		updateSelectedCount(newTree);
 	};
 
 	// Get selection state for a folder: 'none', 'partial', or 'full'
@@ -185,7 +174,7 @@ export default function App() {
 			// Exit after showing success
 			setTimeout(() => {
 				exit();
-			}, 600);
+			}, 800);
 		} catch (error) {
 			setIsGenerating(false);
 			// Could add error state here
@@ -218,8 +207,6 @@ export default function App() {
 			toggleSelected(cursorIndex);
 		} else if (key.return) {
 			generateAndCopyXML();
-		} else if (input === '?') {
-			setShowHelp(h => !h);
 		} else if (input === 'q' || key.escape) {
 			exit();
 		}
@@ -267,64 +254,28 @@ export default function App() {
 		return fixed + branch + label;
 	};
 
-	const termWidth = stdout?.columns ?? 80;
 
-	// Dynamic help bar
-	const helpBar = showHelp ? (
-		<Box flexDirection="column">
-			<Text color="gray">{'┄'.repeat(termWidth)}</Text>
-			<Text backgroundColor="gray" color="black" wrap="truncate">
-				{' ↑/↓ move  ←/→ fold  Space toggle  Enter generate  q quit '.padEnd(termWidth - 1)}
-			</Text>
-			<Text color="gray">{'┄'.repeat(termWidth)}</Text>
-		</Box>
-	) : null;
-
-	// Status/generation feedback
-	const statusBar = (() => {
-		if (generationComplete) {
-			const msg = gradient('green', 'cyan')(' ✓ XML copied to clipboard ');
-			return (
-				<Text backgroundColor="black" color="white" bold wrap="truncate">
-					{msg.padEnd(termWidth - 1)}
-				</Text>
-			);
-		}
-		
-		if (isGenerating) {
-			return (
-				<Text backgroundColor="gray" color="black" wrap="truncate">
-					<Spinner type="dots" /> {` Generating XML for ${selectedCount} files `.padEnd(termWidth - 4)}
-				</Text>
-			);
-		}
-
-		// Normal status
-		const status = `${selectedCount}/${totalFiles} selected`;
-		return (
-			<Text backgroundColor="gray" color="black" wrap="truncate">
-				{` ${status} `.padEnd(termWidth - 1)}
-			</Text>
-		);
-	})();
 
 	return (
 		<Box flexDirection="column" padding={1}>
 			{/* Gradient banner */}
-			<Box marginBottom={1}>
+			<Box marginBottom={0}>
 				<Gradient name="pastel">
 					<BigText text="xmlprompt" font="block" />
 				</Gradient>
 			</Box>
 
-			{/* Breathing room */}
-			<Box height={1} />
+			{/* ───────────────────────────────── hint bar ─────────────────────────────── */}
+			{showHelp && (
+				<HintBar />
+			)}
 
 			{loading ? (
 				<Text>Loading files...</Text>
 			) : (
 				<>
-					<Box flexDirection="column" marginBottom={1}>
+					{/* File directory */}
+					<Box flexDirection="column">
 						{flatList.map((node, index) => {
 							const isActive = cursorIndex === index;
 							const content = renderRow(node, index);
@@ -340,13 +291,72 @@ export default function App() {
 						})}
 					</Box>
 					
-					{/* Dynamic help bar */}
-					{helpBar}
-					
-					{/* Status bar with generation feedback */}
-					{statusBar}
+					{/* Status bar (spinner / success / idle) */}
+					<StatusBar
+						isGenerating={isGenerating}
+						generationComplete={generationComplete}
+						fileCount={getSelectedFiles(fileTree).length}
+					/>
 				</>
 			)}
 		</Box>
 	);
+}
+
+// ─────────────────────────  components  ─────────────────────────
+
+function HorizontalRule({width}: {width: number}) {
+	return <Text color="gray">{'─'.repeat(width)}</Text>;
+}
+
+function HintBar() {
+	// Calculate width based on help text content length
+	const helpText = "↑/↓ move • ←/→ fold • Space toggle • Enter generate • q quit";
+	const helpWidth = helpText.length;
+	
+	return (
+		<>
+			<HorizontalRule width={helpWidth} />
+			<Text color="gray" bold>
+				<Text color="yellow" bold>↑/↓</Text> move <Text color="gray">•</Text>{' '}
+				<Text color="yellow" bold>←/→</Text> fold <Text color="gray">•</Text>{' '}
+				<Text color="yellow" bold>Space</Text> toggle <Text color="gray">•</Text>{' '}
+				<Text color="yellow" bold>Enter</Text> generate <Text color="gray">•</Text>{' '}
+				<Text color="yellow" bold>q</Text> quit
+			</Text>
+			<HorizontalRule width={helpWidth} />
+		</>
+	);
+}
+
+function StatusBar({
+	isGenerating,
+	generationComplete,
+	fileCount,
+}: {
+	isGenerating: boolean;
+	generationComplete: boolean;
+	fileCount: number;
+}) {
+	const {stdout} = useStdout();
+	const width = stdout.columns ?? 80;
+
+	if (isGenerating) {
+		return (
+			<Text>
+				<Spinner type="dots" />{' '}
+				<Text bold>
+					Generating XML for {fileCount} file{fileCount === 1 ? '' : 's'}…
+				</Text>
+			</Text>
+		);
+	}
+
+	if (generationComplete) {
+		const msg = gradient('green', 'cyan')('✓ XML copied to clipboard');
+		return <Text>{msg.padEnd(width - 1)}</Text>;
+	}
+
+	// Idle: nothing (the hint bar already shows)
+	return null;
 }
