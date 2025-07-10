@@ -5,9 +5,9 @@
 ---
 
 ![npm](https://img.shields.io/npm/v/xmlprompt?color=%23c678dd\&label=npm%20package)
-![License](https://img.shields.io/github/license/your‑org/xmlprompt)
+![License](https://img.shields.io/github/license/lolrazh/xmlprompt)
 
-![XMLPrompt CLI](,/media/xmlprompt.png)<img src="/media/xmlprompt.png" width="900" />
+![XMLPrompt CLI](./media/xmlprompt.png)
 
 ---
 
