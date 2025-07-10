@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import clipboardy from 'clipboardy';
-import figures from 'figures';
-import chalk from 'chalk';
 import {
 	discoverFiles,
 	buildFileTree,
@@ -12,17 +10,14 @@ import {
 	type FileNode,
 } from './file-utils.js';
 
-// Consistent icon family using figures with fixed width
-const icons = {
-	unchecked: '○',      // Unicode circle
-	checked: '●',        // Unicode filled circle  
-	folderClosed: '📁',  // Folder emoji
-	folderOpen: '📂',    // Open folder emoji
-	star: figures.star,
-	pipe: '│',
-	branch: '├─',
-	lastBranch: '└─',
-	space: '  ',
+// Pure ASCII glyph set - clean and professional
+const GLYPHS = {
+	cursor: '▸',        // shows on active row
+	indentPipe: '│ ',
+	indentBranch: '├─ ',
+	indentLast: '└─ ',
+	selected: '*',
+	unselected: ' ',
 };
 
 export default function App() {
@@ -32,7 +27,6 @@ export default function App() {
 	const [flatList, setFlatList] = useState<FileNode[]>([]);
 	const [status, setStatus] = useState('Loading files...');
 	const [totalFiles, setTotalFiles] = useState(0);
-	const { stdout } = useStdout();
 
 	useEffect(() => {
 		discoverFiles()
@@ -106,22 +100,22 @@ export default function App() {
 	const generateAndCopyXML = async () => {
 		const selectedFiles = getSelectedFiles(fileTree);
 		if (selectedFiles.length === 0) {
-			setStatus(chalk.red('No files selected!'));
+			setStatus('No files selected!');
 			return;
 		}
 
 		try {
-			setStatus(chalk.yellow(`Generating XML for ${selectedFiles.length} files...`));
+			setStatus(`Generating XML for ${selectedFiles.length} files...`);
 			const xml = generateXML(selectedFiles);
 			await clipboardy.write(xml);
-			setStatus(chalk.green(`✓ Generated XML for ${selectedFiles.length} files and copied to clipboard!`));
+			setStatus(`✓ Generated XML for ${selectedFiles.length} files and copied to clipboard!`);
 			
 			// Exit after successful generation
 			setTimeout(() => {
 				process.exit(0);
-			}, 800); // Slightly longer to see the success message
+			}, 800);
 		} catch (error) {
-			setStatus(chalk.red('Error generating XML or copying to clipboard'));
+			setStatus('Error generating XML or copying to clipboard');
 		}
 	};
 
@@ -143,53 +137,38 @@ export default function App() {
 		}
 	});
 
-	const getTreeStructure = (node: FileNode, index: number): string => {
+	const renderRow = (node: FileNode, idx: number): string => {
 		const depth = node.path.split('/').length - 1;
-		if (depth === 0) return '';
 		
-		// Build proper tree connectors
-		const isLastInParent = index === flatList.length - 1 || 
-			(index + 1 < flatList.length && (flatList[index + 1]?.path.split('/').length ?? 0) <= depth);
-		
-		const connector = depth === 1 
-			? (isLastInParent ? icons.lastBranch : icons.branch)
-			: icons.pipe.repeat(depth - 1) + (isLastInParent ? icons.lastBranch : icons.branch);
+		// Build proper tree structure
+		let indent = '';
+		if (depth > 0) {
+			// Determine if this is the last child at its level
+			const isLast = idx === flatList.length - 1 || 
+				(idx + 1 < flatList.length && (flatList[idx + 1]?.path.split('/').length ?? 0) <= depth);
 			
-		return connector + ' ';
-	};
-
-	const getIcon = (node: FileNode): string => {
-		if (node.type === 'file') {
-			return node.selected 
-				? chalk.green(icons.checked)
-				: chalk.gray(icons.unchecked);
-		} else {
-			return chalk.yellow(node.expanded ? icons.folderOpen : icons.folderClosed);
+			// Build the tree structure
+			if (depth === 1) {
+				indent = isLast ? GLYPHS.indentLast : GLYPHS.indentBranch;
+			} else {
+				// For deeper levels, add pipes for previous depths
+				indent = Array(depth - 1).fill(GLYPHS.indentPipe).join('') + 
+					(isLast ? GLYPHS.indentLast : GLYPHS.indentBranch);
+			}
 		}
-	};
 
-	const formatTreeLine = (node: FileNode, index: number): string => {
-		const treeStructure = getTreeStructure(node, index);
-		const icon = getIcon(node);
-		const name = node.name;
-		
-		// Create the full line content
-		const content = `${treeStructure}${icon} ${name}`;
-		
-		// Pad to terminal width for solid highlight bar
-		const termWidth = stdout?.columns ?? 80;
-		const paddedContent = content.padEnd(termWidth - 2); // -2 for margins
-		
-		return paddedContent;
+		const cursorCol = cursorIndex === idx ? GLYPHS.cursor : ' ';
+		const marker = node.selected ? GLYPHS.selected : GLYPHS.unselected;
+		const label = node.type === 'directory' ? `${node.name}/` : node.name;
+
+		return `${cursorCol} ${indent}${marker} ${label}`;
 	};
 
 	return (
 		<Box flexDirection="column" padding={1}>
-			{/* Enhanced header with branding */}
+			{/* Clean header */}
 			<Box marginBottom={1}>
-				<Text bold>
-					{chalk.cyan(icons.star)} <Text color="cyan">xmlprompt</Text>
-				</Text>
+				<Text bold>xmlprompt</Text>
 			</Box>
 
 			{loading ? (
@@ -198,14 +177,13 @@ export default function App() {
 				<>
 					<Box flexDirection="column" marginBottom={1}>
 						{flatList.map((node, index) => {
-							const isSelected = cursorIndex === index;
-							const content = formatTreeLine(node, index);
+							const isActive = cursorIndex === index;
+							const content = renderRow(node, index);
 							
 							return (
 								<Text
 									key={node.path}
-									inverse={isSelected}
-									wrap="truncate"
+									color={isActive ? 'cyan' : undefined}
 								>
 									{content}
 								</Text>
@@ -213,12 +191,8 @@ export default function App() {
 						})}
 					</Box>
 					
-					{/* Enhanced status bar with full width */}
-					<Box width={stdout?.columns ?? 80}>
-						<Text backgroundColor="gray" color="white">
-							{` ${status}`.padEnd((stdout?.columns ?? 80) - 2)}
-						</Text>
-					</Box>
+					{/* Clean status line */}
+					<Text color="gray">{status}</Text>
 				</>
 			)}
 		</Box>
