@@ -16,8 +16,9 @@ import {
 const COLS = {
 	cursor: '●',          // solid dot cursor
 	space: ' ',           // one space
-	markSelected: '*',
-	markNone: ' ',
+	markSelected: '*',    // fully selected
+	markPartial: '-',     // partially selected (for folders)
+	markNone: ' ',        // not selected
 };
 
 export default function App() {
@@ -57,6 +58,46 @@ export default function App() {
 		updateStatus(newTree);
 	};
 
+	// Get selection state for a folder: 'none', 'partial', or 'full'
+	const getFolderSelectionState = (node: FileNode): 'none' | 'partial' | 'full' => {
+		if (node.type === 'file') {
+			return node.selected ? 'full' : 'none';
+		}
+
+		if (!node.children || node.children.length === 0) {
+			return 'none';
+		}
+
+		const childStates = node.children.map(child => getFolderSelectionState(child));
+		const selectedCount = childStates.filter(state => state === 'full').length;
+		const partialCount = childStates.filter(state => state === 'partial').length;
+
+		if (selectedCount === node.children.length && partialCount === 0) {
+			return 'full';
+		} else if (selectedCount > 0 || partialCount > 0) {
+			return 'partial';
+		} else {
+			return 'none';
+		}
+	};
+
+	// Update tree with selection states
+	const updateTreeWithSelectionStates = (nodes: FileNode[]): FileNode[] => {
+		return nodes.map(node => {
+			if (node.type === 'file') {
+				return node;
+			} else {
+				const updatedChildren = node.children ? updateTreeWithSelectionStates(node.children) : [];
+				const selectionState = getFolderSelectionState({ ...node, children: updatedChildren });
+				return {
+					...node,
+					children: updatedChildren,
+					selected: selectionState === 'full',
+				};
+			}
+		});
+	};
+
 	const toggleExpanded = (nodeIndex: number) => {
 		const targetNode = flatList[nodeIndex];
 		if (targetNode?.type !== 'directory') return;
@@ -85,7 +126,29 @@ export default function App() {
 		const updateNodeSelected = (nodes: FileNode[]): FileNode[] => {
 			return nodes.map(node => {
 				if (node.path === targetNode.path) {
-					return { ...node, selected: !node.selected };
+					if (node.type === 'file') {
+						// Simple toggle for files
+						return { ...node, selected: !node.selected };
+					} else {
+						// Smart folder selection logic
+						const currentState = getFolderSelectionState(node);
+						const newSelection = currentState !== 'full'; // If not fully selected, select all; otherwise deselect all
+						
+						// Recursively update all children
+						const updateChildren = (children: FileNode[]): FileNode[] => {
+							return children.map(child => ({
+								...child,
+								selected: child.type === 'file' ? newSelection : child.selected,
+								children: child.children ? updateChildren(child.children) : undefined,
+							}));
+						};
+
+						return {
+							...node,
+							selected: newSelection,
+							children: node.children ? updateChildren(node.children) : undefined,
+						};
+					}
 				}
 				if (node.children) {
 					return { ...node, children: updateNodeSelected(node.children) };
@@ -94,7 +157,9 @@ export default function App() {
 			});
 		};
 
-		const newTree = updateNodeSelected(fileTree);
+		let newTree = updateNodeSelected(fileTree);
+		// Update folder selection states based on their children
+		newTree = updateTreeWithSelectionStates(newTree);
 		setFileTree(newTree);
 		updateFlatList(newTree);
 	};
@@ -147,10 +212,25 @@ export default function App() {
 
 		// 1. Fixed-width prefix: cursor + space + marker + space
 		const cursor = cursorIndex === idx ? COLS.cursor : COLS.space;
-		const marker = node.selected ? COLS.markSelected : COLS.markNone;
+		
+		// 2. Get marker based on selection state
+		let marker: string;
+		if (node.type === 'file') {
+			marker = node.selected ? COLS.markSelected : COLS.markNone;
+		} else {
+			const selectionState = getFolderSelectionState(node);
+			if (selectionState === 'full') {
+				marker = COLS.markSelected;
+			} else if (selectionState === 'partial') {
+				marker = COLS.markPartial;
+			} else {
+				marker = COLS.markNone;
+			}
+		}
+		
 		const fixed = `${cursor}${COLS.space}${marker}${COLS.space}`;
 
-		// 2. Tree branch (draw after fixed prefix so stars line up)
+		// 3. Tree branch (draw after fixed prefix so markers line up)
 		let branch = '';
 		if (depth > 0) {
 			// Determine if this is the last child at its level
@@ -163,7 +243,7 @@ export default function App() {
 				.slice(0, -2) + (isLast ? '└─ ' : '├─ ');
 		}
 
-		// 3. Label, folders get trailing '/'
+		// 4. Label, folders get trailing '/'
 		const label = node.type === 'directory' ? `${node.name}/` : node.name;
 
 		return fixed + branch + label;
