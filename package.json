@@ -1,7 +1,11 @@
 {
 	"name": "xmlprompt",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lolrazh/xmlprompt.git"
+	},
 	"bin": {
 		"xmlprompt": "dist/cli.js"
 	},
