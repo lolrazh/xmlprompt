@@ -1,4 +1,4 @@
-# XMLprompt
+# XMLPrompt CLI
 
 > *Instantly wrap any subset of your repo in well‑formed XML — straight from the terminal.*
 
@@ -7,13 +7,9 @@
 ![npm](https://img.shields.io/npm/v/xmlprompt?color=%23c678dd\&label=npm%20package)
 ![License](https://img.shields.io/github/license/your‑org/xmlprompt)
 
-<img src="/media/xmlprompt.png" width="700" />
+![XMLPrompt CLI](,/media/xmlprompt.png)<img src="/media/xmlprompt.png" width="900" />
 
 ---
-
-## ✨ Why?
-
-Prompt engineers (and anyone pasting code into ChatGPT/Gemini) waste minutes hopping between files, hand‑wrapping snippets in `<file>` tags, and fighting clipboard chaos. **xmlprompt** turns that slog into a 5‑second keyboard ritual:
 
 ```bash
 $ npx xmlprompt            # 1️⃣ launch
