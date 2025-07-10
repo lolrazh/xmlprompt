@@ -290,6 +290,9 @@ export default function App() {
 							);
 						})}
 					</Box>
+
+					{/* gap before status bar */}
+					<Text>{'\n'}</Text>
 					
 					{/* Status bar (spinner / success / idle) */}
 					<StatusBar
@@ -311,20 +314,23 @@ function HorizontalRule({width}: {width: number}) {
 
 function HintBar() {
 	// Calculate width based on help text content length
-	const helpText = "↑/↓ move • ←/→ fold • Space toggle • Enter generate • q quit";
+	const helpText = "↑/↓  move   •   ←/→  fold   •   Space  toggle   •   Enter  generate   •   q  quit";
 	const helpWidth = helpText.length;
 	
 	return (
 		<>
 			<HorizontalRule width={helpWidth} />
-			<Text color="gray" bold>
-				<Text color="yellow" bold>↑/↓</Text> move <Text color="gray">•</Text>{' '}
-				<Text color="yellow" bold>←/→</Text> fold <Text color="gray">•</Text>{' '}
-				<Text color="yellow" bold>Space</Text> toggle <Text color="gray">•</Text>{' '}
-				<Text color="yellow" bold>Enter</Text> generate <Text color="gray">•</Text>{' '}
-				<Text color="yellow" bold>q</Text> quit
+			<Text bold color="white">
+				<Text bold color="cyanBright">↑/↓</Text>  move   <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">←/→</Text>  fold   <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">Space</Text>  toggle   <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">Enter</Text>  generate   <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">q</Text>  quit
 			</Text>
 			<HorizontalRule width={helpWidth} />
+
+			{/* one-line gap below the bar */}
+			<Text>{'\n'}</Text>
 		</>
 	);
 }
@@ -353,8 +359,14 @@ function StatusBar({
 	}
 
 	if (generationComplete) {
-		const msg = gradient('green', 'cyan')('✓ XML copied to clipboard');
-		return <Text>{msg.padEnd(width - 1)}</Text>;
+		const msg = gradient('green', 'cyan')(
+			'  ✓  XML COPIED TO CLIPBOARD  '
+		);
+		return (
+			<Text bold>
+				{msg.padEnd(width - 1)}
+			</Text>
+		);
 	}
 
 	// Idle: nothing (the hint bar already shows)
