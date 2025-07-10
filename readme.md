@@ -1,4 +1,4 @@
-# xmlprompt
+# XMLprompt
 
 > *Instantly wrap any subset of your repo in well‑formed XML — straight from the terminal.*
 
