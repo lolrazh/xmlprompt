@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput, useApp, useStdout } from 'ink';
+import React, {useState, useEffect} from 'react';
+import {Box, Text, useInput, useApp, useStdout} from 'ink';
 import clipboardy from 'clipboardy';
 import Gradient from 'ink-gradient';
 import BigText from 'ink-big-text';
@@ -16,11 +16,11 @@ import {
 
 // Column-perfect layout constants
 const COLS = {
-	cursor: '●',          // solid dot cursor
-	space: ' ',           // one space
-	markSelected: '*',    // fully selected
-	markPartial: '-',     // partially selected (for folders)
-	markNone: ' ',        // not selected
+	cursor: '●', // solid dot cursor
+	space: ' ', // one space
+	markSelected: '*', // fully selected
+	markPartial: '-', // partially selected (for folders)
+	markNone: ' ', // not selected
 };
 
 export default function App() {
@@ -31,7 +31,7 @@ export default function App() {
 	const [showHelp] = useState(true);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generationComplete, setGenerationComplete] = useState(false);
-	const { exit } = useApp();
+	const {exit} = useApp();
 
 	useEffect(() => {
 		discoverFiles()
@@ -52,7 +52,9 @@ export default function App() {
 	};
 
 	// Get selection state for a folder: 'none', 'partial', or 'full'
-	const getFolderSelectionState = (node: FileNode): 'none' | 'partial' | 'full' => {
+	const getFolderSelectionState = (
+		node: FileNode,
+	): 'none' | 'partial' | 'full' => {
 		if (node.type === 'file') {
 			return node.selected ? 'full' : 'none';
 		}
@@ -61,9 +63,13 @@ export default function App() {
 			return 'none';
 		}
 
-		const childStates = node.children.map(child => getFolderSelectionState(child));
+		const childStates = node.children.map(child =>
+			getFolderSelectionState(child),
+		);
 		const selectedCount = childStates.filter(state => state === 'full').length;
-		const partialCount = childStates.filter(state => state === 'partial').length;
+		const partialCount = childStates.filter(
+			state => state === 'partial',
+		).length;
 
 		if (selectedCount === node.children.length && partialCount === 0) {
 			return 'full';
@@ -80,8 +86,13 @@ export default function App() {
 			if (node.type === 'file') {
 				return node;
 			} else {
-				const updatedChildren = node.children ? updateTreeWithSelectionStates(node.children) : [];
-				const selectionState = getFolderSelectionState({ ...node, children: updatedChildren });
+				const updatedChildren = node.children
+					? updateTreeWithSelectionStates(node.children)
+					: [];
+				const selectionState = getFolderSelectionState({
+					...node,
+					children: updatedChildren,
+				});
 				return {
 					...node,
 					children: updatedChildren,
@@ -98,10 +109,10 @@ export default function App() {
 		const updateNodeExpanded = (nodes: FileNode[]): FileNode[] => {
 			return nodes.map(node => {
 				if (node.path === targetNode.path) {
-					return { ...node, expanded: !node.expanded };
+					return {...node, expanded: !node.expanded};
 				}
 				if (node.children) {
-					return { ...node, children: updateNodeExpanded(node.children) };
+					return {...node, children: updateNodeExpanded(node.children)};
 				}
 				return node;
 			});
@@ -121,30 +132,34 @@ export default function App() {
 				if (node.path === targetNode.path) {
 					if (node.type === 'file') {
 						// Simple toggle for files
-						return { ...node, selected: !node.selected };
+						return {...node, selected: !node.selected};
 					} else {
 						// Smart folder selection logic
 						const currentState = getFolderSelectionState(node);
 						const newSelection = currentState !== 'full'; // If not fully selected, select all; otherwise deselect all
-						
+
 						// Recursively update all children
 						const updateChildren = (children: FileNode[]): FileNode[] => {
 							return children.map(child => ({
 								...child,
 								selected: child.type === 'file' ? newSelection : child.selected,
-								children: child.children ? updateChildren(child.children) : undefined,
+								children: child.children
+									? updateChildren(child.children)
+									: undefined,
 							}));
 						};
 
 						return {
 							...node,
 							selected: newSelection,
-							children: node.children ? updateChildren(node.children) : undefined,
+							children: node.children
+								? updateChildren(node.children)
+								: undefined,
 						};
 					}
 				}
 				if (node.children) {
-					return { ...node, children: updateNodeSelected(node.children) };
+					return {...node, children: updateNodeSelected(node.children)};
 				}
 				return node;
 			});
@@ -167,10 +182,10 @@ export default function App() {
 			setIsGenerating(true);
 			const xml = generateXML(selectedFiles);
 			await clipboardy.write(xml);
-			
+
 			setIsGenerating(false);
 			setGenerationComplete(true);
-			
+
 			// Exit after showing success
 			setTimeout(() => {
 				exit();
@@ -217,7 +232,7 @@ export default function App() {
 
 		// 1. Fixed-width prefix: cursor + space + marker + space
 		const cursor = cursorIndex === idx ? COLS.cursor : COLS.space;
-		
+
 		// 2. Get marker based on selection state
 		let marker: string;
 		if (node.type === 'file') {
@@ -232,20 +247,21 @@ export default function App() {
 				marker = COLS.markNone;
 			}
 		}
-		
+
 		const fixed = `${cursor}${COLS.space}${marker}${COLS.space}`;
 
 		// 3. Tree branch (draw after fixed prefix so markers line up)
 		let branch = '';
 		if (depth > 0) {
 			// Determine if this is the last child at its level
-			const isLast = idx === flatList.length - 1 || 
-				(idx + 1 < flatList.length && (flatList[idx + 1]?.path.split('/').length ?? 0) <= depth);
+			const isLast =
+				idx === flatList.length - 1 ||
+				(idx + 1 < flatList.length &&
+					(flatList[idx + 1]?.path.split('/').length ?? 0) <= depth);
 
-			branch = Array(depth)
-				.fill('│ ')
-				.join('')
-				.slice(0, -2) + (isLast ? '└─ ' : '├─ ');
+			branch =
+				Array(depth).fill('│ ').join('').slice(0, -2) +
+				(isLast ? '└─ ' : '├─ ');
 		}
 
 		// 4. Label, folders get trailing '/'
@@ -253,8 +269,6 @@ export default function App() {
 
 		return fixed + branch + label;
 	};
-
-
 
 	return (
 		<Box flexDirection="column" padding={1}>
@@ -266,9 +280,7 @@ export default function App() {
 			</Box>
 
 			{/* ───────────────────────────────── hint bar ─────────────────────────────── */}
-			{showHelp && (
-				<HintBar />
-			)}
+			{showHelp && <HintBar />}
 
 			{loading ? (
 				<Text>Loading files...</Text>
@@ -279,12 +291,9 @@ export default function App() {
 						{flatList.map((node, index) => {
 							const isActive = cursorIndex === index;
 							const content = renderRow(node, index);
-							
+
 							return (
-								<Text
-									key={node.path}
-									color={isActive ? 'cyan' : undefined}
-								>
+								<Text key={node.path} color={isActive ? 'cyan' : undefined}>
 									{content}
 								</Text>
 							);
@@ -293,7 +302,7 @@ export default function App() {
 
 					{/* gap before status bar */}
 					<Text>{'\n'}</Text>
-					
+
 					{/* Status bar (spinner / success / idle) */}
 					<StatusBar
 						isGenerating={isGenerating}
@@ -314,18 +323,34 @@ function HorizontalRule({width}: {width: number}) {
 
 function HintBar() {
 	// Calculate width based on help text content length
-	const helpText = "↑/↓  move   •   ←/→  fold   •   Space  toggle   •   Enter  generate   •   q  quit";
+	const helpText =
+		'↑/↓  move   •   ←/→  fold   •   Space  toggle   •   Enter  generate   •   q  quit';
 	const helpWidth = helpText.length;
-	
+
 	return (
 		<>
 			<HorizontalRule width={helpWidth} />
 			<Text bold color="white">
-				<Text bold color="cyanBright">↑/↓</Text>  move   <Text color="gray">•</Text>{' '}
-				<Text bold color="cyanBright">←/→</Text>  fold   <Text color="gray">•</Text>{' '}
-				<Text bold color="cyanBright">Space</Text>  toggle   <Text color="gray">•</Text>{' '}
-				<Text bold color="cyanBright">Enter</Text>  generate   <Text color="gray">•</Text>{' '}
-				<Text bold color="cyanBright">q</Text>  quit
+				<Text bold color="cyanBright">
+					↑/↓
+				</Text>{' '}
+				move <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">
+					←/→
+				</Text>{' '}
+				fold <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">
+					Space
+				</Text>{' '}
+				toggle <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">
+					Enter
+				</Text>{' '}
+				generate <Text color="gray">•</Text>{' '}
+				<Text bold color="cyanBright">
+					q
+				</Text>{' '}
+				quit
 			</Text>
 			<HorizontalRule width={helpWidth} />
 
@@ -359,14 +384,8 @@ function StatusBar({
 	}
 
 	if (generationComplete) {
-		const msg = gradient('green', 'cyan')(
-			'  ✓  XML COPIED TO CLIPBOARD  '
-		);
-		return (
-			<Text bold>
-				{msg.padEnd(width - 1)}
-			</Text>
-		);
+		const msg = gradient('green', 'cyan')('  ✓  XML COPIED TO CLIPBOARD  ');
+		return <Text bold>{msg.padEnd(width - 1)}</Text>;
 	}
 
 	// Idle: nothing (the hint bar already shows)

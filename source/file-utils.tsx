@@ -1,5 +1,5 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import {readFileSync} from 'fs';
+import {join} from 'path';
 import fg from 'fast-glob';
 import ignore from 'ignore';
 
@@ -15,7 +15,10 @@ export interface FileNode {
 export async function discoverFiles(rootPath: string = '.'): Promise<string[]> {
 	const ig = ignore();
 	try {
-		const gitignoreContent = readFileSync(join(rootPath, '.gitignore'), 'utf-8');
+		const gitignoreContent = readFileSync(
+			join(rootPath, '.gitignore'),
+			'utf-8',
+		);
 		ig.add(gitignoreContent);
 	} catch (error) {
 		// No .gitignore file found, continue without it
@@ -37,11 +40,11 @@ export function buildFileTree(files: string[]): FileNode[] {
 
 	for (const filePath of files) {
 		const parts = filePath.split('/');
-		
+
 		for (let i = 0; i < parts.length; i++) {
 			const currentPath = parts.slice(0, i + 1).join('/');
 			const isFile = i === parts.length - 1;
-			
+
 			if (!nodeMap[currentPath]) {
 				const node: FileNode = {
 					name: parts[i] || '',
@@ -51,9 +54,9 @@ export function buildFileTree(files: string[]): FileNode[] {
 					selected: false,
 					expanded: false,
 				};
-				
+
 				nodeMap[currentPath] = node;
-				
+
 				if (i === 0) {
 					// Root level node
 					rootNodes.push(node);
@@ -72,22 +75,26 @@ export function buildFileTree(files: string[]): FileNode[] {
 	return rootNodes;
 }
 
-export function generateXML(selectedFiles: string[], rootPath: string = '.'): string {
-	const rootName = rootPath === '.' ? 'root' : rootPath.split('/').pop() || 'root';
-	
+export function generateXML(
+	selectedFiles: string[],
+	rootPath: string = '.',
+): string {
+	const rootName =
+		rootPath === '.' ? 'root' : rootPath.split('/').pop() || 'root';
+
 	// Build hierarchical structure
 	const structure: Record<string, any> = {};
-	
+
 	for (const filePath of selectedFiles) {
 		const parts = filePath.split('/');
 		let current = structure;
-		
+
 		for (let i = 0; i < parts.length; i++) {
 			const part = parts[i];
 			if (!part) continue;
-			
+
 			const isFile = i === parts.length - 1;
-			
+
 			if (isFile) {
 				try {
 					const content = readFileSync(join(rootPath, filePath), 'utf-8');
@@ -103,9 +110,13 @@ export function generateXML(selectedFiles: string[], rootPath: string = '.'): st
 			}
 		}
 	}
-	
+
 	// Convert structure to XML
-	function structureToXML(obj: any, tagName: string, indent: string = ''): string {
+	function structureToXML(
+		obj: any,
+		tagName: string,
+		indent: string = '',
+	): string {
 		if (typeof obj === 'string') {
 			// File content
 			return `${indent}<${tagName}>\n${obj}\n${indent}</${tagName}>\n`;
@@ -119,7 +130,7 @@ export function generateXML(selectedFiles: string[], rootPath: string = '.'): st
 			return xml;
 		}
 	}
-	
+
 	return structureToXML(structure, rootName).trim();
 }
 
@@ -155,4 +166,4 @@ export function getSelectedFiles(nodes: FileNode[]): string[] {
 
 	traverse(nodes);
 	return selected;
-} 
+}
