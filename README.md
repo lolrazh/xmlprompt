@@ -25,7 +25,7 @@
 It’s the missing capture tool for [**XML Prompt Builder**](https://xmlprompt.dev) — the visual prompt editor that turns those XML trees into production‑ready prompts.
 
 <details>
-<summary>👉 Why XML style prompting?</summary>
+<summary>Why XML style prompting?</summary>
 <br>
 
 * Hierarchy beats tokens. Wrapping each file in `<file name="…">…</file>` gives the llm clear boundaries for scope, folders, and filenames—this is what antwerp’s “de-chunking with xml” article recommends.
@@ -44,7 +44,7 @@ It’s the missing capture tool for [**XML Prompt Builder**](https://xmlprompt
 | -------------------- | -------------------------------------------------------------------------- |
 | **Interactive TUI**  | Smooth scrolling tree, arrow‑key folding, tri‑state folder marks ✔ ／ － ／ ○ |
 | **One‑touch export** | Clipboard *(TTY)*, stdout *(when piped)* or `-o` to a file                 |
-| **Config‑aware**     | Reads `.gitignore`, `.xmlpromptignore`, `.xmlpromptrc`                     |
+| **Config‑aware**     | Reads `.gitignore`                     |
 | **Single‑binary**    | Install once or just run `npx xmlprompt`                                   |
 | **Cross‑platform**   | macOS (arm + x64), Linux, Windows/WSL                                      |
 
