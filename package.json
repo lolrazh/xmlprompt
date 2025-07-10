@@ -19,8 +19,11 @@
 		"clipboardy": "^4.0.0",
 		"fast-glob": "^3.3.3",
 		"figures": "^6.1.0",
+		"gradient-string": "^3.0.0",
 		"ignore": "^7.0.5",
 		"ink": "^4.1.0",
+		"ink-big-text": "^2.0.0",
+		"ink-gradient": "^3.0.0",
 		"meow": "^11.0.0",
 		"react": "^18.2.0"
 	},

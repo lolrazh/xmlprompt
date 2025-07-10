@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import clipboardy from 'clipboardy';
+import Gradient from 'ink-gradient';
+import BigText from 'ink-big-text';
 import {
 	discoverFiles,
 	buildFileTree,
@@ -10,14 +12,12 @@ import {
 	type FileNode,
 } from './file-utils.js';
 
-// Pure ASCII glyph set - clean and professional
-const GLYPHS = {
-	cursor: '▸',        // shows on active row
-	indentPipe: '│ ',
-	indentBranch: '├─ ',
-	indentLast: '└─ ',
-	selected: '*',
-	unselected: ' ',
+// Column-perfect layout constants
+const COLS = {
+	cursor: '●',          // solid dot cursor
+	space: ' ',           // one space
+	markSelected: '*',
+	markNone: ' ',
 };
 
 export default function App() {
@@ -27,6 +27,8 @@ export default function App() {
 	const [flatList, setFlatList] = useState<FileNode[]>([]);
 	const [status, setStatus] = useState('Loading files...');
 	const [totalFiles, setTotalFiles] = useState(0);
+	const [flash, setFlash] = useState(false);
+	const { stdout } = useStdout();
 
 	useEffect(() => {
 		discoverFiles()
@@ -47,7 +49,7 @@ export default function App() {
 
 	const updateStatus = (tree: FileNode[]) => {
 		const selectedCount = getSelectedFiles(tree).length;
-		setStatus(`${selectedCount}/${totalFiles} files selected • ↑/↓ navigate • Space select • / expand • Enter generate`);
+		setStatus(`${selectedCount}/${totalFiles} selected • ↑/↓ navigate • Space select • / expand • Enter generate`);
 	};
 
 	const updateFlatList = (newTree: FileNode[]) => {
@@ -108,12 +110,15 @@ export default function App() {
 			setStatus(`Generating XML for ${selectedFiles.length} files...`);
 			const xml = generateXML(selectedFiles);
 			await clipboardy.write(xml);
-			setStatus(`✓ Generated XML for ${selectedFiles.length} files and copied to clipboard!`);
 			
-			// Exit after successful generation
+			// Flash success with green highlight
+			setFlash(true);
+			setTimeout(() => setFlash(false), 500);
+			
+			// Exit after showing success flash
 			setTimeout(() => {
 				process.exit(0);
-			}, 800);
+			}, 1000);
 		} catch (error) {
 			setStatus('Error generating XML or copying to clipboard');
 		}
@@ -139,36 +144,43 @@ export default function App() {
 
 	const renderRow = (node: FileNode, idx: number): string => {
 		const depth = node.path.split('/').length - 1;
-		
-		// Build proper tree structure
-		let indent = '';
+
+		// 1. Fixed-width prefix: cursor + space + marker + space
+		const cursor = cursorIndex === idx ? COLS.cursor : COLS.space;
+		const marker = node.selected ? COLS.markSelected : COLS.markNone;
+		const fixed = `${cursor}${COLS.space}${marker}${COLS.space}`;
+
+		// 2. Tree branch (draw after fixed prefix so stars line up)
+		let branch = '';
 		if (depth > 0) {
 			// Determine if this is the last child at its level
 			const isLast = idx === flatList.length - 1 || 
 				(idx + 1 < flatList.length && (flatList[idx + 1]?.path.split('/').length ?? 0) <= depth);
-			
-			// Build the tree structure
-			if (depth === 1) {
-				indent = isLast ? GLYPHS.indentLast : GLYPHS.indentBranch;
-			} else {
-				// For deeper levels, add pipes for previous depths
-				indent = Array(depth - 1).fill(GLYPHS.indentPipe).join('') + 
-					(isLast ? GLYPHS.indentLast : GLYPHS.indentBranch);
-			}
+
+			branch = Array(depth)
+				.fill('│ ')
+				.join('')
+				.slice(0, -2) + (isLast ? '└─ ' : '├─ ');
 		}
 
-		const cursorCol = cursorIndex === idx ? GLYPHS.cursor : ' ';
-		const marker = node.selected ? GLYPHS.selected : GLYPHS.unselected;
+		// 3. Label, folders get trailing '/'
 		const label = node.type === 'directory' ? `${node.name}/` : node.name;
 
-		return `${cursorCol} ${indent}${marker} ${label}`;
+		return fixed + branch + label;
 	};
+
+	const termWidth = stdout?.columns ?? 80;
+	const footer = flash 
+		? ` ✓ XML copied to clipboard! `
+		: ` ${status} `;
 
 	return (
 		<Box flexDirection="column" padding={1}>
-			{/* Clean header */}
-			<Box marginBottom={1}>
-				<Text bold>xmlprompt</Text>
+			{/* Gradient banner */}
+			<Box justifyContent="center" marginBottom={1}>
+				<Gradient name="pastel">
+					<BigText text="xmlprompt" font="block" />
+				</Gradient>
 			</Box>
 
 			{loading ? (
@@ -191,8 +203,14 @@ export default function App() {
 						})}
 					</Box>
 					
-					{/* Clean status line */}
-					<Text color="gray">{status}</Text>
+					{/* Full-width status bar with flash effect */}
+					<Text
+						backgroundColor={flash ? 'green' : 'gray'}
+						color="black"
+						wrap="truncate"
+					>
+						{footer.padEnd(termWidth - 2)}
+					</Text>
 				</>
 			)}
 		</Box>
