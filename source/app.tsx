@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import clipboardy from 'clipboardy';
 import figures from 'figures';
 import chalk from 'chalk';
@@ -12,16 +12,16 @@ import {
 	type FileNode,
 } from './file-utils.js';
 
-// Consistent icon family using figures
+// Consistent icon family using figures with fixed width
 const icons = {
-	unchecked: chalk.gray(figures.circle),      // ○
-	checked: chalk.green(figures.circleFilled), // ●
-	folderClosed: chalk.yellow('📁'), // Use emoji directly since figures doesn't have folder
-	folderOpen: chalk.yellow('📂'), // Use emoji directly since figures doesn't have folderOpen
-	star: chalk.cyan(figures.star),
-	pipe: chalk.gray('│'),
-	branch: chalk.gray('├─'),
-	lastBranch: chalk.gray('└─'),
+	unchecked: '○',      // Unicode circle
+	checked: '●',        // Unicode filled circle  
+	folderClosed: '📁',  // Folder emoji
+	folderOpen: '📂',    // Open folder emoji
+	star: figures.star,
+	pipe: '│',
+	branch: '├─',
+	lastBranch: '└─',
 	space: '  ',
 };
 
@@ -32,6 +32,7 @@ export default function App() {
 	const [flatList, setFlatList] = useState<FileNode[]>([]);
 	const [status, setStatus] = useState('Loading files...');
 	const [totalFiles, setTotalFiles] = useState(0);
+	const { stdout } = useStdout();
 
 	useEffect(() => {
 		discoverFiles()
@@ -142,20 +143,44 @@ export default function App() {
 		}
 	});
 
-	const getTreeConnector = (path: string): string => {
-		const depth = path.split('/').length - 1;
+	const getTreeStructure = (node: FileNode, index: number): string => {
+		const depth = node.path.split('/').length - 1;
 		if (depth === 0) return '';
 		
-		// Simple connector - could be enhanced with proper tree lines
-		return icons.space.repeat(depth);
+		// Build proper tree connectors
+		const isLastInParent = index === flatList.length - 1 || 
+			(index + 1 < flatList.length && (flatList[index + 1]?.path.split('/').length ?? 0) <= depth);
+		
+		const connector = depth === 1 
+			? (isLastInParent ? icons.lastBranch : icons.branch)
+			: icons.pipe.repeat(depth - 1) + (isLastInParent ? icons.lastBranch : icons.branch);
+			
+		return connector + ' ';
 	};
 
 	const getIcon = (node: FileNode): string => {
 		if (node.type === 'file') {
-			return node.selected ? icons.checked : icons.unchecked;
+			return node.selected 
+				? chalk.green(icons.checked)
+				: chalk.gray(icons.unchecked);
 		} else {
-			return node.expanded ? icons.folderOpen : icons.folderClosed;
+			return chalk.yellow(node.expanded ? icons.folderOpen : icons.folderClosed);
 		}
+	};
+
+	const formatTreeLine = (node: FileNode, index: number): string => {
+		const treeStructure = getTreeStructure(node, index);
+		const icon = getIcon(node);
+		const name = node.name;
+		
+		// Create the full line content
+		const content = `${treeStructure}${icon} ${name}`;
+		
+		// Pad to terminal width for solid highlight bar
+		const termWidth = stdout?.columns ?? 80;
+		const paddedContent = content.padEnd(termWidth - 2); // -2 for margins
+		
+		return paddedContent;
 	};
 
 	return (
@@ -163,7 +188,7 @@ export default function App() {
 			{/* Enhanced header with branding */}
 			<Box marginBottom={1}>
 				<Text bold>
-					{icons.star} <Text color="cyan">xmlprompt</Text>
+					{chalk.cyan(icons.star)} <Text color="cyan">xmlprompt</Text>
 				</Text>
 			</Box>
 
@@ -174,23 +199,25 @@ export default function App() {
 					<Box flexDirection="column" marginBottom={1}>
 						{flatList.map((node, index) => {
 							const isSelected = cursorIndex === index;
+							const content = formatTreeLine(node, index);
+							
 							return (
 								<Text
 									key={node.path}
-									backgroundColor={isSelected ? 'gray' : undefined}
-									color={isSelected ? 'black' : undefined}
+									inverse={isSelected}
+									wrap="truncate"
 								>
-									{isSelected ? '❯ ' : '  '}
-									{getTreeConnector(node.path)}
-									{getIcon(node)} {node.name}
+									{content}
 								</Text>
 							);
 						})}
 					</Box>
 					
-					{/* Enhanced status bar */}
-					<Box marginTop={1}>
-						<Text backgroundColor="gray" color="white"> {status} </Text>
+					{/* Enhanced status bar with full width */}
+					<Box width={stdout?.columns ?? 80}>
+						<Text backgroundColor="gray" color="white">
+							{` ${status}`.padEnd((stdout?.columns ?? 80) - 2)}
+						</Text>
 					</Box>
 				</>
 			)}
