@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { Box, Text, useInput, useStdout, useApp } from 'ink';
 import clipboardy from 'clipboardy';
 import Gradient from 'ink-gradient';
 import BigText from 'ink-big-text';
+import Spinner from 'ink-spinner';
+import gradient from 'gradient-string';
 import {
 	discoverFiles,
 	buildFileTree,
@@ -26,10 +28,13 @@ export default function App() {
 	const [loading, setLoading] = useState(true);
 	const [cursorIndex, setCursorIndex] = useState(0);
 	const [flatList, setFlatList] = useState<FileNode[]>([]);
-	const [status, setStatus] = useState('Loading files...');
 	const [totalFiles, setTotalFiles] = useState(0);
-	const [flash, setFlash] = useState(false);
+	const [showHelp, setShowHelp] = useState(true);
+	const [isGenerating, setIsGenerating] = useState(false);
+	const [generationComplete, setGenerationComplete] = useState(false);
+	const [selectedCount, setSelectedCount] = useState(0);
 	const { stdout } = useStdout();
+	const { exit } = useApp();
 
 	useEffect(() => {
 		discoverFiles()
@@ -39,23 +44,22 @@ export default function App() {
 				setFlatList(flattenTree(tree));
 				setTotalFiles(files.length);
 				setLoading(false);
-				updateStatus(tree);
+				updateSelectedCount(tree);
 			})
 			.catch(err => {
 				console.error('Error discovering files:', err);
 				setLoading(false);
-				setStatus('Error loading files');
 			});
 	}, []);
 
-	const updateStatus = (tree: FileNode[]) => {
-		const selectedCount = getSelectedFiles(tree).length;
-		setStatus(`${selectedCount}/${totalFiles} selected • ↑/↓ navigate • Space select • / expand • Enter generate`);
+	const updateSelectedCount = (tree: FileNode[]) => {
+		const count = getSelectedFiles(tree).length;
+		setSelectedCount(count);
 	};
 
 	const updateFlatList = (newTree: FileNode[]) => {
 		setFlatList(flattenTree(newTree));
-		updateStatus(newTree);
+		updateSelectedCount(newTree);
 	};
 
 	// Get selection state for a folder: 'none', 'partial', or 'full'
@@ -167,43 +171,57 @@ export default function App() {
 	const generateAndCopyXML = async () => {
 		const selectedFiles = getSelectedFiles(fileTree);
 		if (selectedFiles.length === 0) {
-			setStatus('No files selected!');
-			return;
+			return; // Do nothing if no files selected
 		}
 
 		try {
-			setStatus(`Generating XML for ${selectedFiles.length} files...`);
+			setIsGenerating(true);
 			const xml = generateXML(selectedFiles);
 			await clipboardy.write(xml);
 			
-			// Flash success with green highlight
-			setFlash(true);
-			setTimeout(() => setFlash(false), 500);
+			setIsGenerating(false);
+			setGenerationComplete(true);
 			
-			// Exit after showing success flash
+			// Exit after showing success
 			setTimeout(() => {
-				process.exit(0);
-			}, 1000);
+				exit();
+			}, 600);
 		} catch (error) {
-			setStatus('Error generating XML or copying to clipboard');
+			setIsGenerating(false);
+			// Could add error state here
 		}
 	};
 
 	useInput((input, key) => {
-		if (loading) return;
+		if (loading || isGenerating) return;
 
 		if (key.upArrow) {
 			setCursorIndex(prev => Math.max(0, prev - 1));
 		} else if (key.downArrow) {
 			setCursorIndex(prev => Math.min(flatList.length - 1, prev + 1));
+		} else if (key.leftArrow || input === 'h') {
+			// Collapse folder
+			const targetNode = flatList[cursorIndex];
+			if (targetNode?.type === 'directory' && targetNode.expanded) {
+				toggleExpanded(cursorIndex);
+			}
+		} else if (key.rightArrow || input === 'l') {
+			// Expand folder
+			const targetNode = flatList[cursorIndex];
+			if (targetNode?.type === 'directory' && !targetNode.expanded) {
+				toggleExpanded(cursorIndex);
+			}
+		} else if (input === '/') {
+			// Keep / as backup for expand/collapse
+			toggleExpanded(cursorIndex);
 		} else if (input === ' ') {
 			toggleSelected(cursorIndex);
-		} else if (input === '/') {
-			toggleExpanded(cursorIndex);
 		} else if (key.return) {
 			generateAndCopyXML();
-		} else if (key.escape) {
-			process.exit(0);
+		} else if (input === '?') {
+			setShowHelp(h => !h);
+		} else if (input === 'q' || key.escape) {
+			exit();
 		}
 	});
 
@@ -250,9 +268,45 @@ export default function App() {
 	};
 
 	const termWidth = stdout?.columns ?? 80;
-	const footer = flash 
-		? ` ✓ XML copied to clipboard! `
-		: ` ${status} `;
+
+	// Dynamic help bar
+	const helpBar = showHelp ? (
+		<Box flexDirection="column">
+			<Text color="gray">{'┄'.repeat(termWidth)}</Text>
+			<Text backgroundColor="gray" color="black" wrap="truncate">
+				{' ↑/↓ move  ←/→ fold  Space toggle  Enter generate  q quit '.padEnd(termWidth - 1)}
+			</Text>
+			<Text color="gray">{'┄'.repeat(termWidth)}</Text>
+		</Box>
+	) : null;
+
+	// Status/generation feedback
+	const statusBar = (() => {
+		if (generationComplete) {
+			const msg = gradient('green', 'cyan')(' ✓ XML copied to clipboard ');
+			return (
+				<Text backgroundColor="black" color="white" bold wrap="truncate">
+					{msg.padEnd(termWidth - 1)}
+				</Text>
+			);
+		}
+		
+		if (isGenerating) {
+			return (
+				<Text backgroundColor="gray" color="black" wrap="truncate">
+					<Spinner type="dots" /> {` Generating XML for ${selectedCount} files `.padEnd(termWidth - 4)}
+				</Text>
+			);
+		}
+
+		// Normal status
+		const status = `${selectedCount}/${totalFiles} selected`;
+		return (
+			<Text backgroundColor="gray" color="black" wrap="truncate">
+				{` ${status} `.padEnd(termWidth - 1)}
+			</Text>
+		);
+	})();
 
 	return (
 		<Box flexDirection="column" padding={1}>
@@ -262,6 +316,9 @@ export default function App() {
 					<BigText text="xmlprompt" font="block" />
 				</Gradient>
 			</Box>
+
+			{/* Breathing room */}
+			<Box height={1} />
 
 			{loading ? (
 				<Text>Loading files...</Text>
@@ -283,14 +340,11 @@ export default function App() {
 						})}
 					</Box>
 					
-					{/* Full-width status bar with flash effect */}
-					<Text
-						backgroundColor={flash ? 'green' : 'gray'}
-						color="black"
-						wrap="truncate"
-					>
-						{footer.padEnd(termWidth - 2)}
-					</Text>
+					{/* Dynamic help bar */}
+					{helpBar}
+					
+					{/* Status bar with generation feedback */}
+					{statusBar}
 				</>
 			)}
 		</Box>
