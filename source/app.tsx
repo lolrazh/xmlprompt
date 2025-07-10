@@ -177,7 +177,7 @@ export default function App() {
 	return (
 		<Box flexDirection="column" padding={1}>
 			{/* Gradient banner */}
-			<Box justifyContent="center" marginBottom={1}>
+			<Box marginBottom={1}>
 				<Gradient name="pastel">
 					<BigText text="xmlprompt" font="block" />
 				</Gradient>
