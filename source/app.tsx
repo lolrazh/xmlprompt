@@ -90,6 +90,11 @@ export default function App() {
 			const xml = generateXML(selectedFiles);
 			await clipboardy.write(xml);
 			setStatus(`Generated XML for ${selectedFiles.length} files and copied to clipboard!`);
+			
+			// Exit after successful generation
+			setTimeout(() => {
+				process.exit(0);
+			}, 500); // Brief delay to show the success message
 		} catch (error) {
 			setStatus('Error generating XML or copying to clipboard');
 		}
